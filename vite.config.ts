@@ -77,5 +77,16 @@ export default defineConfig({
       '@': `${import.meta.dirname}/src`,
     },
   },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('recharts')) return 'recharts';
+          if (id.includes('dexie')) return 'dexie';
+          if (id.includes('zustand')) return 'zustand';
+        },
+      },
+    },
+  },
 });
-
