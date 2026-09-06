@@ -1,0 +1,227 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================
+   LapForce Base Styles — High-contrast dark mode
+   ============================================= */
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    @apply bg-track-black text-white;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent pull-to-refresh and overscroll on mobile */
+    overscroll-behavior: none;
+    /* Prevent text selection during interaction */
+    -webkit-user-select: none;
+    user-select: none;
+    /* Prevent tap highlight */
+    -webkit-tap-highlight-color: transparent;
+    /* Safe area for notched iPhones */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  * {
+    @apply box-border;
+    touch-action: manipulation;
+  }
+
+  /* Numeric font features for consistent digit widths */
+  .font-mono,
+  [class*='delta'],
+  [class*='telemetry'] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
+
+/* =============================================
+   LapForce Component Styles
+   ============================================= */
+
+@layer components {
+  /* Card surfaces */
+  .lf-card {
+    @apply bg-track-card border border-track-border rounded-xl;
+  }
+
+  .lf-card-surface {
+    @apply bg-track-surface border border-track-border rounded-xl;
+  }
+
+  /* Buttons */
+  .lf-btn {
+    @apply relative inline-flex items-center justify-center gap-2
+           font-semibold rounded-xl transition-all duration-200
+           active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-track-black;
+  }
+
+  .lf-btn-primary {
+    @apply lf-btn bg-neon-green text-track-black
+           hover:bg-neon-green-dim focus:ring-neon-green
+           px-8 py-4 text-lg;
+    box-shadow: 0 0 20px rgba(0, 255, 135, 0.3);
+  }
+
+  .lf-btn-primary:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 135, 0.5);
+  }
+
+  .lf-btn-danger {
+    @apply lf-btn bg-neon-red text-white
+           hover:bg-neon-red-dim focus:ring-neon-red
+           px-6 py-3 text-base;
+    box-shadow: 0 0 15px rgba(255, 59, 59, 0.3);
+  }
+
+  .lf-btn-ghost {
+    @apply lf-btn border border-track-border text-white/70
+           hover:border-white/30 hover:text-white focus:ring-white/20
+           px-6 py-3 text-base;
+  }
+
+  .lf-btn-icon {
+    @apply lf-btn p-3 rounded-full border border-track-border
+           text-white/60 hover:text-white hover:border-white/30;
+  }
+
+  /* Delta display */
+  .lf-delta {
+    @apply font-mono font-bold tabular-nums leading-none;
+  }
+
+  .lf-delta-ahead {
+    @apply lf-delta text-delta-ahead;
+    text-shadow: 0 0 20px rgba(0, 255, 135, 0.6);
+  }
+
+  .lf-delta-behind {
+    @apply lf-delta text-delta-behind;
+    text-shadow: 0 0 20px rgba(255, 59, 59, 0.6);
+  }
+
+  .lf-delta-neutral {
+    @apply lf-delta text-delta-neutral;
+  }
+
+  /* Data labels */
+  .lf-label {
+    @apply text-xs font-semibold uppercase tracking-widest text-white/40;
+  }
+
+  .lf-value {
+    @apply font-mono text-2xl font-bold text-white;
+  }
+
+  /* Neon borders / accents */
+  .lf-neon-border-green {
+    border: 1px solid rgba(0, 255, 135, 0.3);
+    box-shadow: inset 0 0 20px rgba(0, 255, 135, 0.05), 0 0 20px rgba(0, 255, 135, 0.1);
+  }
+
+  .lf-neon-border-red {
+    border: 1px solid rgba(255, 59, 59, 0.3);
+    box-shadow: inset 0 0 20px rgba(255, 59, 59, 0.05), 0 0 20px rgba(255, 59, 59, 0.1);
+  }
+
+  /* Telemetry badge */
+  .lf-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5
+           text-xs font-semibold rounded-full;
+  }
+
+  .lf-badge-active {
+    @apply lf-badge bg-neon-green/20 text-neon-green;
+  }
+
+  .lf-badge-inactive {
+    @apply lf-badge bg-white/10 text-white/50;
+  }
+
+  .lf-badge-warning {
+    @apply lf-badge bg-neon-yellow/20 text-neon-yellow;
+  }
+
+  /* Live indicator dot */
+  .lf-live-dot {
+    @apply w-2 h-2 rounded-full bg-neon-red animate-pulse-fast;
+  }
+
+  /* Full-bleed screen */
+  .lf-screen {
+    @apply min-h-screen bg-track-black flex flex-col;
+  }
+
+  /* Scrollbar styling */
+  .lf-scrollable {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  }
+
+  .lf-scrollable::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .lf-scrollable::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+  }
+
+  /* Glassmorphism overlay */
+  .lf-glass {
+    backdrop-filter: blur(12px);
+    background: rgba(13, 17, 23, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* =============================================
+   Utility Overrides
+   ============================================= */
+
+@layer utilities {
+  .no-tap-highlight {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent scroll bounce on iOS for fixed elements */
+  .no-bounce {
+    overscroll-behavior: none;
+  }
+
+  /* Force GPU layer for smooth animations */
+  .will-animate {
+    will-change: transform, opacity;
+  }
+}
+
+/* =============================================
+   Pocket Mode (black screen)
+   ============================================= */
+
+.pocket-mode-active {
+  background: #000000 !important;
+  color: transparent !important;
+}
+
+.pocket-mode-active * {
+  visibility: hidden !important;
+}
+
+/* =============================================
+   PWA Install Banner
+   ============================================= */
+
+.pwa-install-banner {
+  animation: slideUp 0.4s ease-out;
+}
