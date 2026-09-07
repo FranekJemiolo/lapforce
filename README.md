@@ -12,17 +12,34 @@
 
 ## Screenshots
 
-### Car Mode — Live Dashboard
-<!-- screenshot: car_dash -->
-> *Live G-Force Friction Circle + Predictive Delta*
-
-### Bike Mode — Lean Angle
-<!-- screenshot: bike_dash -->
-> *Live Lean Angle Gauge + Predictive Delta*
-
-### Post-Session Analytics
-<!-- screenshot: analytics -->
-> *Lap table with segment charts (Entry / Apex / Exit speed)*
+<table>
+  <tr>
+    <td align="center"><b>Home Screen</b></td>
+    <td align="center"><b>Session Setup</b></td>
+    <td align="center"><b>Mounting Warning</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/01_home_screen.jpg" width="220" alt="Home screen — install prompt, feature badges, and storage info"/></td>
+    <td><img src="docs/screenshots/02_setup_screen.jpg" width="220" alt="Session setup — vehicle mode, GPS gate, live IMU readout"/></td>
+    <td><img src="docs/screenshots/03_mounting_modal.jpg" width="220" alt="Mounting warning modal — rigidly mounted vs pocket mode"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Glanceable Mode</b></td>
+    <td align="center"><b>Detailed Mode</b></td>
+    <td align="center"><b>Session Review + GPS Map</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/04_live_glanceable.jpg" width="220" alt="Live dashboard glanceable — giant predictive delta + G-force circle"/></td>
+    <td><img src="docs/screenshots/05_live_detailed.jpg" width="220" alt="Live dashboard detailed — speed, lap time, max G, GPS accuracy, mini table"/></td>
+    <td><img src="docs/screenshots/06_session_review_map.jpg" width="220" alt="Session review with GPS path trace coloured by speed"/></td>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><b>Corner Metrics Table (Car mode)</b></td>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><img src="docs/screenshots/07_corner_metrics.jpg" width="320" alt="Corner metrics — entry/apex/exit speeds, max lat G, min lat G, peak brake G per corner"/></td>
+  </tr>
+</table>
 
 ---
 
