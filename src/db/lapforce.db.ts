@@ -79,8 +79,24 @@ export interface Segment {
   minSpeedMs: number;
   /** Speed at end of segment (m/s) */
   exitSpeedMs: number;
-  /** Max lateral G during segment */
+  /** Max lateral G during segment (positive = right) */
   maxLateralG: number;
+
+  // ── Granular Car metrics ──────────────────────────────────────────────
+  /** Min lateral G during segment (negative = left turn) */
+  minLateralG: number;
+  /** Peak braking G during segment (positive = braking, i.e. negative longitudinal G) */
+  peakBrakingG: number;
+
+  // ── Granular Bike metrics ─────────────────────────────────────────────
+  /** Maximum lean angle during segment (degrees, positive = right) */
+  maxSegLeanAngle: number;
+  /** Average lean angle magnitude during segment (degrees, always positive) */
+  avgLeanAngleMag: number;
+  /** Number of lean samples accumulated */
+  leanSampleCount: number;
+  /** Running sum for avgLeanAngle computation */
+  leanAngleSum: number;
 }
 
 export interface TelemetryTick {

@@ -350,16 +350,26 @@ export const useTelemetryStore = create<TelemetryStore>()(
 
       // ── Segmentation ──────────────────────────
       if (currentLap && currentIMU) {
-        const { state: newSegState, segment } = classifySegment(segmentationState, {
+        const { state: newSegState, segment, newCompletedSegment } = classifySegment(segmentationState, {
           lateralG: currentIMU.lateralG,
           longitudinalG: currentIMU.longitudinalG,
           gyroAlpha: currentIMU.gyroAlpha,
           speedMs: pos.speedMs,
           timestampMs: nowMs,
+          rollDeg: currentIMU.roll,
         });
 
         newState.segmentationState = newSegState;
         newState.currentSegment = segment;
+
+        // Append newly completed corner segment to current lap
+        if (newCompletedSegment) {
+          const lap = newState.currentLap ?? currentLap;
+          newState.currentLap = {
+            ...lap,
+            segments: [...lap.segments, newCompletedSegment],
+          };
+        }
 
         // Track max speed in current lap
         if (currentLap.maxSpeedMs < pos.speedMs) {

@@ -1,19 +1,25 @@
 /**
  * SessionReview.tsx — Post-session analytics page
  *
- * Shows lap table + segment charts from:
- *   1. Current in-memory session (just ended)
- *   2. Historical sessions from Dexie.js
+ * Shows:
+ *   - Session switcher (current in-memory + historical from Dexie)
+ *   - Stats summary (laps, best time, max speed)
+ *   - Lap table (tap a row to expand detail panel)
+ *   - Per-lap detail panel:
+ *       • GPS 2D path trace (best lap GPS from telemetry_ticks)
+ *       • Recharts segment speed chart
+ *       • CornerMetricsTable (granular per-corner Car/Bike data)
  */
 
 import { useState, useEffect } from 'react';
 import type { AppView } from '@/App';
 import { useTelemetryStore } from '@/store/telemetryStore';
 import { db } from '@/db/lapforce.db';
-import type { Session, Lap, Segment } from '@/db/lapforce.db';
+import type { Session, Lap, Segment, TelemetryTick } from '@/db/lapforce.db';
 import type { CompletedLap } from '@/store/telemetryStore';
-import { LapTable } from '@/components/LapTable';
 import { SegmentChart } from '@/components/SegmentChart';
+import { GpsPathCanvas } from '@/components/GpsPathCanvas';
+import { CornerMetricsTable } from '@/components/CornerMetricsTable';
 import { msToKph } from '@/hooks/useGPS';
 
 interface SessionReviewProps {
@@ -32,7 +38,6 @@ function formatTime(ms: number): string {
   return `${min}:${sec.toFixed(3).padStart(6, '0')}`;
 }
 
-// Convert stored DB Lap to CompletedLap for LapTable
 function dbLapToCompleted(lap: Lap): CompletedLap {
   return {
     lapNumber: lap.lapNumber,
@@ -47,14 +52,18 @@ function dbLapToCompleted(lap: Lap): CompletedLap {
   };
 }
 
+type DetailTab = 'map' | 'segments' | 'corners';
+
 export function SessionReview({ onNavigate }: SessionReviewProps) {
   const store = useTelemetryStore();
   const [storedSessions, setStoredSessions] = useState<StoredSession[]>([]);
   const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
   const [selectedLapIndex, setSelectedLapIndex] = useState<number | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>('map');
   const [isLoading, setIsLoading] = useState(true);
+  const [gpsPoints, setGpsPoints] = useState<Array<{ lat: number; lng: number; speedMs: number }>>([]);
+  const [isLoadingGps, setIsLoadingGps] = useState(false);
 
-  // Determine if we're viewing the current in-memory session or a historical one
   const hasCurrentSession = store.completedLaps.length > 0;
   const [viewingCurrent, setViewingCurrent] = useState(hasCurrentSession);
 
@@ -66,8 +75,7 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
         const sessionsWithLaps = await Promise.all(
           sessions.map(async session => {
             const laps = await db.laps
-              .where('sessionId')
-              .equals(session.id!)
+              .where('sessionId').equals(session.id!)
               .sortBy('lapNumber');
             return { session, laps };
           })
@@ -82,21 +90,72 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
     loadSessions();
   }, []);
 
+  // Fetch GPS ticks for selected lap
+  useEffect(() => {
+    if (selectedLapIndex === null || detailTab !== 'map') return;
+    const lapIdx = selectedLapIndex; // narrow for TS
+
+    async function loadGpsTicks() {
+      setIsLoadingGps(true);
+      setGpsPoints([]);
+      try {
+        let startMs: number | null = null;
+        let endMs: number | null = null;
+        let sessionId: number | null = null;
+
+        if (viewingCurrent) {
+          const lap = store.completedLaps[lapIdx];
+          if (!lap) return;
+          sessionId = store.sessionId;
+          const allLaps = store.completedLaps;
+          const prevEndMs = lapIdx > 0
+            ? allLaps[lapIdx - 1].durationMs
+            : 0;
+          startMs = Date.now() - prevEndMs - lap.durationMs;
+          endMs = startMs + lap.durationMs;
+        } else {
+          const stored = storedSessions[selectedSessionIndex];
+          const dbLap = stored?.laps[lapIdx];
+          if (!dbLap) return;
+          sessionId = dbLap.sessionId;
+          startMs = dbLap.startMs;
+          endMs = dbLap.endMs ?? (dbLap.startMs + (dbLap.durationMs ?? 0));
+        }
+
+        if (!sessionId || startMs === null || endMs === null) return;
+
+        const ticks: TelemetryTick[] = await db.telemetryTicks
+          .where('[sessionId+timestampMs]')
+          .between([sessionId, startMs], [sessionId, endMs], true, true)
+          .toArray();
+
+        setGpsPoints(ticks.map(t => ({ lat: t.lat, lng: t.lng, speedMs: t.speedMs })));
+      } catch (err) {
+        console.error('Failed to load GPS ticks:', err);
+      } finally {
+        setIsLoadingGps(false);
+      }
+    }
+    loadGpsTicks();
+  }, [selectedLapIndex, detailTab, viewingCurrent, selectedSessionIndex, store, storedSessions]);
+
   // Current session data
   const currentLaps = store.completedLaps;
   const currentBestMs = store.bestLapMs;
+  const currentVehicleMode = store.vehicleMode;
 
   // Historical session data
   const selectedStored = storedSessions[selectedSessionIndex];
   const storedLaps = selectedStored?.laps.map(dbLapToCompleted) ?? [];
   const storedBestMs = selectedStored?.session.bestLapMs ?? null;
+  const storedVehicleMode = selectedStored?.session.vehicleMode ?? 'car';
 
   // Which data to show
   const displayLaps = viewingCurrent ? currentLaps : storedLaps;
   const displayBestMs = viewingCurrent ? currentBestMs : storedBestMs;
   const displaySession = viewingCurrent ? null : selectedStored?.session;
+  const displayVehicleMode = viewingCurrent ? currentVehicleMode : storedVehicleMode;
 
-  // Chart data: show segments for selected lap
   const selectedLap = selectedLapIndex !== null ? displayLaps[selectedLapIndex] : null;
 
   return (
@@ -105,10 +164,7 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
       <div className="flex items-center gap-3 px-5 pt-6 pb-4 border-b border-track-border">
         <button
           className="lf-btn-icon"
-          onClick={() => {
-            store.reset();
-            onNavigate('home');
-          }}
+          onClick={() => { store.reset(); onNavigate('home'); }}
           aria-label="Back to home"
         >
           ←
@@ -117,22 +173,15 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
           <h1 className="text-lg font-bold text-white">Session Review</h1>
           {displaySession && (
             <p className="text-xs text-white/40">
-              {displaySession.trackName} ·{' '}
-              {new Date(displaySession.startedAt).toLocaleDateString()}
+              {displaySession.trackName} · {new Date(displaySession.startedAt).toLocaleDateString()}
             </p>
           )}
-          {viewingCurrent && (
-            <p className="text-xs text-neon-green/60">Current session</p>
-          )}
+          {viewingCurrent && <p className="text-xs text-neon-green/60">Current session</p>}
         </div>
-        {/* New session button */}
         <button
           id="btn-new-session-from-review"
           className="lf-btn-primary px-4 py-2 text-sm"
-          onClick={() => {
-            store.reset();
-            onNavigate('setup');
-          }}
+          onClick={() => { store.reset(); onNavigate('setup'); }}
         >
           New Session
         </button>
@@ -145,13 +194,11 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
           <div className="flex gap-2 overflow-x-auto pb-1 lf-scrollable">
             {hasCurrentSession && (
               <button
-                className={`
-                  flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all
-                  ${viewingCurrent
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  viewingCurrent
                     ? 'bg-neon-green/20 text-neon-green border border-neon-green/40'
-                    : 'bg-track-card text-white/50 border border-track-border hover:text-white/80'}
-                `}
-                onClick={() => { setViewingCurrent(true); setSelectedLapIndex(null); }}
+                    : 'bg-track-card text-white/50 border border-track-border hover:text-white/80'}`}
+                onClick={() => { setViewingCurrent(true); setSelectedLapIndex(null); setGpsPoints([]); }}
               >
                 🔴 Live Session
               </button>
@@ -159,16 +206,15 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
             {storedSessions.map((s, i) => (
               <button
                 key={s.session.id}
-                className={`
-                  flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap
-                  ${!viewingCurrent && selectedSessionIndex === i
+                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                  !viewingCurrent && selectedSessionIndex === i
                     ? 'bg-neon-blue/20 text-neon-blue border border-neon-blue/40'
-                    : 'bg-track-card text-white/50 border border-track-border hover:text-white/80'}
-                `}
+                    : 'bg-track-card text-white/50 border border-track-border hover:text-white/80'}`}
                 onClick={() => {
                   setViewingCurrent(false);
                   setSelectedSessionIndex(i);
                   setSelectedLapIndex(null);
+                  setGpsPoints([]);
                 }}
               >
                 {s.session.trackName || 'Session'} ({s.laps.length} laps)
@@ -188,7 +234,7 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
             </div>
             <div className="lf-card p-3 text-center">
               <div className="lf-label">BEST</div>
-              <div className="font-mono text-lg font-bold text-neon-green">
+              <div className="font-mono text-base font-bold text-neon-green">
                 {displayBestMs ? formatTime(displayBestMs) : '—'}
               </div>
             </div>
@@ -213,21 +259,17 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
         <div className="flex flex-col items-center justify-center p-12 gap-4">
           <div className="text-4xl">🏁</div>
           <p className="text-white/30 text-sm text-center">
-            No sessions recorded yet.{'\n'}Complete a track session to see your data here.
+            No sessions recorded yet. Complete a track session to see your data here.
           </p>
-          <button
-            className="lf-btn-primary mt-2"
-            onClick={() => { store.reset(); onNavigate('setup'); }}
-          >
+          <button className="lf-btn-primary mt-2" onClick={() => { store.reset(); onNavigate('setup'); }}>
             Start First Session
           </button>
         </div>
       ) : (
         <div className="px-4 pt-4 space-y-3">
-          <h2 className="lf-label">Lap Times</h2>
+          <h2 className="lf-label">Lap Times — tap a row to expand</h2>
           <div className="lf-card overflow-hidden">
-            {/* Tap a lap to see its segment chart */}
-            <div className="overflow-x-auto lf-scrollable">
+            <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-track-border">
@@ -245,7 +287,11 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
                         key={lap.lapNumber}
                         className={`border-b border-track-border/40 transition-colors cursor-pointer
                           ${isSelected ? 'bg-neon-blue/10' : isBest ? 'bg-neon-green/5' : 'hover:bg-track-card/50'}`}
-                        onClick={() => setSelectedLapIndex(isSelected ? null : idx)}
+                        onClick={() => {
+                          setSelectedLapIndex(isSelected ? null : idx);
+                          setDetailTab('map');
+                          setGpsPoints([]);
+                        }}
                       >
                         <td className="px-3 py-2.5 text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -263,9 +309,7 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
                             lap.deltaMs === null ? 'text-neon-yellow' :
                             lap.deltaMs < 0 ? 'text-neon-green' : 'text-neon-red'
                           }`}>
-                            {lap.deltaMs === null
-                              ? '—'
-                              : (lap.deltaMs >= 0 ? '+' : '') + (lap.deltaMs / 1000).toFixed(3)}
+                            {lap.deltaMs === null ? '—' : (lap.deltaMs >= 0 ? '+' : '') + (lap.deltaMs / 1000).toFixed(3)}
                           </span>
                         </td>
                         <td className="px-3 py-2.5 text-center font-mono text-xs text-white/60">
@@ -285,26 +329,74 @@ export function SessionReview({ onNavigate }: SessionReviewProps) {
             </div>
           </div>
 
-          {/* Segment chart for selected lap */}
+          {/* ── Expanded Lap Detail Panel ─────────────────────────── */}
           {selectedLap && (
-            <div className="lf-card p-4 animate-slide-up">
-              <SegmentChart
-                segments={selectedLap.segments}
-                lapNumber={selectedLap.lapNumber}
-              />
+            <div className="lf-card overflow-hidden animate-slide-up">
+              {/* Detail tab bar */}
+              <div className="flex border-b border-track-border">
+                {(['map', 'segments', 'corners'] as DetailTab[]).map(tab => (
+                  <button
+                    key={tab}
+                    className={`flex-1 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all ${
+                      detailTab === tab
+                        ? 'text-neon-green border-b-2 border-neon-green bg-neon-green/5'
+                        : 'text-white/40 hover:text-white/70'
+                    }`}
+                    onClick={() => setDetailTab(tab)}
+                  >
+                    {tab === 'map' ? '🗺 Map' : tab === 'segments' ? '📈 Segments' : '↩ Corners'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-4">
+                {/* ── MAP TAB ── */}
+                {detailTab === 'map' && (
+                  <div className="flex flex-col items-center gap-3">
+                    <GpsPathCanvas
+                      points={gpsPoints}
+                      gateLat={displaySession?.gateLat}
+                      gateLng={displaySession?.gateLng}
+                      isLoading={isLoadingGps}
+                      width={Math.min(320, window.innerWidth - 64)}
+                      height={240}
+                    />
+                    {gpsPoints.length > 0 && (
+                      <p className="text-[11px] text-white/30 text-center">
+                        Lap {selectedLap.lapNumber} · {gpsPoints.length} GPS points ·{' '}
+                        {formatTime(selectedLap.durationMs)}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* ── SEGMENTS TAB ── */}
+                {detailTab === 'segments' && (
+                  <SegmentChart
+                    segments={selectedLap.segments}
+                    lapNumber={selectedLap.lapNumber}
+                  />
+                )}
+
+                {/* ── CORNERS TAB ── */}
+                {detailTab === 'corners' && (
+                  <CornerMetricsTable
+                    segments={selectedLap.segments}
+                    vehicleMode={displayVehicleMode}
+                    lapNumber={selectedLap.lapNumber}
+                  />
+                )}
+              </div>
             </div>
           )}
 
           {!selectedLap && displayLaps.length > 0 && (
             <p className="text-xs text-white/20 text-center pb-2">
-              Tap a lap to view segment chart
+              Tap a lap row to view GPS trace, segment chart, and corner breakdown
             </p>
           )}
         </div>
       )}
-
-      {/* Lap table component (exported separately, used in LiveDashboard) */}
-      {false && <LapTable laps={displayLaps} bestLapMs={displayBestMs} />}
 
       <div className="h-12" />
     </div>
