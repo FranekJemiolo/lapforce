@@ -16,6 +16,7 @@ import { useTelemetryStore } from '@/store/telemetryStore';
 import { useGPS } from '@/hooks/useGPS';
 import { useIMU } from '@/hooks/useIMU';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useDeviceCapabilities } from '@/hooks/useDeviceCapabilities';
 import { MountingWarningModal } from '@/components/MountingWarningModal';
 import type { VehicleMode } from '@/db/lapforce.db';
 
@@ -44,6 +45,7 @@ export function SetupScreen({ onNavigate }: SetupScreenProps) {
   const { position, gpsState, startTracking } = useGPS();
   const { permissionState, requestPermission, data: imuData } = useIMU();
   const { wakeLockState, requestWakeLock } = useWakeLock();
+  const caps = useDeviceCapabilities();
   const [isStarting, setIsStarting] = useState(false);
   const [gateLocked, setGateLocked] = useState(false);
   const [showMountingModal, setShowMountingModal] = useState(false);
@@ -139,6 +141,31 @@ export function SetupScreen({ onNavigate }: SetupScreenProps) {
             <p className="text-xs text-white/40">Configure before going to track</p>
           </div>
         </div>
+
+        {/* ── Desktop / no-sensor warning ── */}
+        {!caps.isMobile && caps.platform !== 'unknown' && (
+          <div className="mx-5 mt-4 rounded-xl border border-neon-blue/30 bg-neon-blue/5 px-4 py-3">
+            <div className="flex items-start gap-3">
+              <span className="text-base mt-0.5">🖥️</span>
+              <div>
+                <p className="text-sm font-semibold text-neon-blue">Desktop detected — sensors unavailable</p>
+                <p className="text-xs text-white/50 mt-0.5 leading-relaxed">
+                  GPS and motion sensors require a mobile device. You can configure a session here,
+                  but live telemetry will not function. Open this page on your phone to go on track.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!caps.isSecureContext && (
+          <div className="mx-5 mt-4 rounded-xl border border-neon-red/30 bg-neon-red/5 px-4 py-3">
+            <p className="text-sm font-semibold text-neon-red">⚠️ HTTPS required</p>
+            <p className="text-xs text-white/50 mt-0.5">
+              GPS and motion sensors are blocked on HTTP. Use the GitHub Pages URL or install the PWA.
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-5 px-5 py-5">
 
